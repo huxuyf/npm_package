@@ -1,8 +1,8 @@
 在 npmjs.com 上发布一个包，本质上是把你的本地项目通过 npm CLI 发布到 registry。下面是一个完整、规范的流程（适用于绝大多数 Node.js 包发布场景）：
 
----
 
-# 一、前置准备
+
+## 一、前置准备
 
 确保你已经安装：
 
@@ -16,9 +16,9 @@ node -v
 npm -v
 ```
 
----
 
-# 二、登录 npm 账号
+
+## 二、登录 npm 账号
 
 在终端执行：
 
@@ -32,18 +32,18 @@ npm login
 * password
 * email（可能需要验证码）
 
----
 
-# 三、创建一个包（项目初始化）
 
-### 1）新建项目目录
+## 三、创建一个包（项目初始化）
+
+#### 1）新建项目目录
 
 ```bash
 mkdir my-package
 cd my-package
 ```
 
-### 2）初始化 package.json
+#### 2）初始化 package.json
 
 ```bash
 npm init
@@ -55,9 +55,9 @@ npm init
 * `version`：版本号（默认 1.0.0）
 * `main`：入口文件（如 index.js）
 
----
 
-# 四、编写你的代码
+
+## 四、编写你的代码
 
 例如创建入口文件：
 
@@ -75,9 +75,9 @@ function hello() {
 module.exports = hello;
 ```
 
----
 
-# 五、（重要）检查包名是否可用
+
+## 五、（重要）检查包名是否可用
 
 ```bash
 npm view your-package-name
@@ -85,11 +85,11 @@ npm view your-package-name
 
 如果报错（not found），说明可以用。
 
----
 
-# 六、发布前检查
 
-### 1）查看将被发布的文件
+## 六、发布前检查
+
+#### 1）查看将被发布的文件
 
 ```bash
 npm pack
@@ -101,7 +101,7 @@ npm pack
 npm publish --dry-run
 ```
 
-### 2）控制上传文件（推荐）
+#### 2）控制上传文件（推荐）
 
 使用 `.npmignore` 或 `files` 字段避免上传：
 
@@ -109,9 +109,9 @@ npm publish --dry-run
 * 测试文件
 * 本地配置
 
----
 
-# 七、发布包
+
+## 七、发布包
 
 ```bash
 npm publish
@@ -123,9 +123,9 @@ npm publish
 npm publish --access public
 ```
 
----
 
-# 八、发布成功后
+
+## 八、发布成功后
 
 你可以在 npm 网站看到：
 
@@ -144,9 +144,9 @@ https://app.unpkg.com/你的包名/
 npm install your-package-name
 ```
 
----
 
-# 九、更新版本（很重要）
+
+## 九、更新版本（很重要）
 
 每次更新必须升级版本号，否则无法发布：
 
@@ -162,9 +162,9 @@ npm version major   # 重大更新 (2.0.0)
 npm publish
 ```
 
----
 
-# 十、常见坑（务必注意）
+
+## 十、常见坑（务必注意）
 
 1. **包名重复**
 
@@ -182,4 +182,11 @@ npm publish
 
    * 用 `.npmignore` 控制
 
----
+
+## 十一、通过Github Action自动发布
+
+```bash
+npm version patch
+git push
+git push origin v1.0.1
+```
