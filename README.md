@@ -32,7 +32,7 @@ npm login
 * password
 * email（可能需要验证码）
 
-如果你还没注册账号，请先到https://www.npmjs.com/注册。
+如果你还没注册账号，请先到 https://www.npmjs.com/ 注册。
 
 
 ## 三、创建一个包（项目初始化）
