@@ -167,3 +167,10 @@ npm version patch
 git push
 git push origin v1.0.1
 ```
+
+说明：
+1. `npm version patch` 会自动修改文件`package.json`中version的值；
+2. 要先 `git push`，再 `git push origin v1.0.1`；
+3. 无需 `git tag v1.0.1`；
+4. 无需 `npm publish`，因为Github Action会自动发布。
+5. `v1.0.1` 要根据实际情况而变，`npm version patch`运行后会提示版本号；
