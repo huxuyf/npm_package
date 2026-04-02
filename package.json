@@ -1,0 +1,16 @@
+{
+  "name": "huxuyf",
+  "version": "1.0.2",
+  "description": "This is my first huxuyf",
+  "keywords": [
+    "help",
+    "me"
+  ],
+  "license": "ISC",
+  "author": "huxuyf",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
