@@ -32,15 +32,18 @@ npm login
 * password
 * email（可能需要验证码）
 
+如果你还没注册账号，请先到https://www.npmjs.com/注册。
 
 
 ## 三、创建一个包（项目初始化）
 
 #### 1）新建项目目录
 
+假设我建的目录以及包名都是`huxuyf`
+
 ```bash
-mkdir my-package
-cd my-package
+mkdir huxuyf
+cd huxuyf
 ```
 
 #### 2）初始化 package.json
@@ -77,10 +80,10 @@ module.exports = hello;
 
 
 
-## 五、（重要）检查包名是否可用
+## 五、检查包名是否可用
 
 ```bash
-npm view your-package-name
+npm view huxuyf
 ```
 
 如果报错（not found），说明可以用。
@@ -95,11 +98,6 @@ npm view your-package-name
 npm pack
 ```
 
-或：
-
-```bash
-npm publish --dry-run
-```
 
 #### 2）控制上传文件（推荐）
 
@@ -117,38 +115,25 @@ npm publish --dry-run
 npm publish
 ```
 
-如果是 scoped 包（例如 @yourname/mypkg）：
-
-```bash
-npm publish --access public
-```
-
-
 
 ## 八、发布成功后
 
 你可以在 npm 网站看到：
 
 ```
-https://www.npmjs.com/package/你的包名
+https://www.npmjs.com/package/huxuyf
 ```
 
-或者
+或者（这个是镜像网站）
 ```
-https://app.unpkg.com/你的包名/
-```
-
-其他人可以安装：
-
-```bash
-npm install your-package-name
+https://app.unpkg.com/huxuyf/
 ```
 
 
 
 ## 九、更新版本（很重要）
 
-每次更新必须升级版本号，否则无法发布：
+**每次更新必须升级版本号，否则无法发布**：
 
 ```bash
 npm version patch   # 修复 bug (1.0.1)
@@ -166,19 +151,11 @@ npm publish
 
 ## 十、常见坑（务必注意）
 
-1. **包名重复**
-
-   * npm 是全局唯一的
-
-2. **忘记改版本号**
+1. **忘记改版本号**
 
    * 会报错：`You cannot publish over the previously published version`
 
-3. **权限问题**
-
-   * scoped 包默认是 private，需要 `--access public`
-
-4. **文件太大或上传多余文件**
+2. **文件太大或上传多余文件**
 
    * 用 `.npmignore` 控制
 
