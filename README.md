@@ -67,6 +67,10 @@ npm init
 ```bash
 touch index.js
 ```
+或者
+```cmd
+type nul > index.js
+```
 
 示例内容：
 
