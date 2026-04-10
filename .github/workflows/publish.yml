@@ -3,23 +3,41 @@ name: Publish Package
 on:
   push:
     tags:
-      - 'v*'   # 只有打 tag 才发布，例如 v1.0.0
+      - 'v*'   # 只有打 tag 才触发发布，例如 v1.0.0
 
 jobs:
   publish:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      # 1️⃣ 拉取完整仓库，包括子模块和全部历史
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 确保拉取完整历史，防止文件缺失
 
-      - name: Setup Node
+      # 2️⃣ 设置 Node 环境
+      - name: 创建 Node 环境
         uses: actions/setup-node@v4
         with:
           node-version: 18
           registry-url: https://registry.npmjs.org/
 
-      - name: 发布到NPM
-        run: npm publish
+      # 3️⃣ 调试：确认文件在 CI 环境里存在
+      - name: 显示文件列表
+        run: |
+          echo "列出仓库中的所有文件："
+          ls -R
+
+      # 4️⃣ 打包前测试：确保 npm 打包包含所有文件
+      - name: 测试 npm pack
+        run: |
+          npm pack
+          echo "打包的内容："
+          tar -tf *.tgz
+
+      # 5️⃣ 发布到 NPM
+      - name: 发布到 NPM
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
