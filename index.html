@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>地图坐标拾取器</title>
+  
+  <link rel="stylesheet" href="css/leaflet.css"/>
+  <link rel="stylesheet" href="css/all.min.css"/>
+  <link rel="stylesheet" href="css/leaflet.awesome-markers.css"/>
+  <link rel="stylesheet" href="css/Control.FullScreen.css"/>
+  <link rel="stylesheet" href="css/Control.MiniMap.css"/>
+
+  <script src="js/leaflet.js"></script>
+  <script src="js/jquery.min.js"></script>
+  <script src="js/leaflet.awesome-markers.js"></script>
+  <script src="js/Control.FullScreen.min.js"></script>
+  <script src="js/Control.MiniMap.js"></script>
+  <script src="js/xlsx.full.min.js"></script>
+
+
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
+    #map { width: 100%; height: 100%; }
+    
+    /* 顶部数据准备面板 */
+    #data-panel {
+      position: absolute; top: 12px; left: 60px; z-index: 1000;
+      background: rgba(255, 255, 255, 0.95); padding: 10px 14px; border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      backdrop-filter: blur(4px);
+    }
+    
+    #data-panel button {
+      cursor: pointer;
+    }
+    .upload-btn { position: relative; overflow: hidden; }
+    .upload-btn input[type="file"] {
+      position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;
+    }
+    .btn-primary-custom {
+      background: #1890ff; color: white; border: none; padding: 6px 12px;
+      border-radius: 4px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .toggle-label { font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; color: #333; }
+    .toggle-label input { cursor: pointer; }
+    
+    #global-message {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+      text-align: center;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    
+    /* 右键菜单样式 */
+    .menu-item {
+      padding: 8px 15px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #333;
+    }
+    .menu-item:hover {
+      background: #f5f5f5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部数据准备面板 -->
+  <div id="data-panel">
+    <button id="data-prepare-btn" class="btn-primary-custom">
+      <i class="fas fa-database"></i> 数据准备
+    </button>
+    
+    <div id="data-options" style="display: none; margin-top: 10px; padding: 15px; background: rgba(255,255,255,0.95); border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);">
+      <!-- 单点区域 -->
+      <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; white-space: nowrap;">
+        <label style="font-weight: bold; margin-right: 10px; display: inline-block;">单点：</label>
+        <input type="text" id="single-point-input" placeholder="经度,纬度" style="width: 200px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; display: inline-block;">
+        <button id="single-point-btn" class="btn-primary-custom" style="margin-left: 10px; display: inline-block;">添加</button>
+        <label class="toggle-label" style="margin-left: 15px; display: inline-block; vertical-align: middle;">
+          <input type="checkbox" id="circle-checkbox">
+        </label>
+        <div id="circle-radius-container" style="display: none; margin-left: 10px; vertical-align: middle;">
+          <input type="number" id="circle-radius" placeholder="圆形半径（米）" style="width: 100px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        </div>
+      </div>
+      
+      <!-- 区域区域 -->
+      <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; white-space: nowrap;">
+        <label style="font-weight: bold; margin-right: 10px; display: inline-block;">区域：</label>
+        <input type="text" id="area-input" placeholder="经度,纬度;经度,纬度;经度,纬度" style="width: 200px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; display: inline-block;">
+        <button id="area-btn" class="btn-primary-custom" style="margin-left: 10px; display: inline-block;">添加</button>
+        <label class="toggle-label" style="margin-left: 15px; display: inline-block; vertical-align: middle;">
+          <input type="checkbox" id="buffer-checkbox"> 
+        </label>
+        <div id="buffer-distance-container" style="display: none; margin-left: 10px; vertical-align: middle;">
+          <input type="number" id="buffer-distance" placeholder="外扩距离（米）" style="width: 100px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        </div>
+      </div>
+      
+      <!-- 散点区域 -->
+      <div style="margin-bottom: 10px;">
+        <label style="font-weight: bold; margin-right: 10px;">散点：</label>
+        <div class="upload-btn btn-primary-custom" title="每行一个坐标，格式为：经度,纬度。">
+          <i class="fas fa-file-alt"></i> 导入数据
+          <input type="file" id="text-input" accept=".txt,.csv">
+        </div>
+        <label class="toggle-label" style="margin-left: 15px; display: inline-block;">
+          <input type="checkbox" id="show-frequency"> 显示频次
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 地图容器 -->
+  <div id="map"></div>
+  
+  <!-- 全局消息提示 -->
+  <div id="global-message"></div>
+  
+  <!-- 右键菜单 -->
+  <div id="context-menu" style="position: fixed; display: none; z-index: 10000; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); padding: 5px 0;">
+    <div class="menu-item" data-action="add-start">添加起点</div>
+    <div class="menu-item" data-action="add-end" style="pointer-events: none; color: #ccc;">添加终点</div>
+    <div class="menu-item" data-action="remove-all" style="pointer-events: none; color: #ccc; border-top: 1px solid #eee; margin-top: 5px; padding-top: 5px;">删除起终点</div>
+  </div>
+
+  <script>
+    /**
+     * 坐标系转换：BD-09 (百度) -> GCJ-02 (高德)
+     */
+    function bd09ToGcj02(bdLng, bdLat) {
+      const x_pi = Math.PI * 3000.0 / 180.0;
+      const x = bdLng - 0.0065;
+      const y = bdLat - 0.006;
+      const z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * x_pi);
+      const theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * x_pi);
+      return [z * Math.cos(theta), z * Math.sin(theta)];
+    }
+
+    function showMessage(text, duration = 1000) {
+      const globalMsg = document.getElementById('global-message');
+      globalMsg.innerHTML = text;
+      globalMsg.style.display = 'block';
+      setTimeout(() => {
+        globalMsg.style.display = 'none';
+      }, duration);
+    }
+
+    // 1. 初始化地图
+    const map = L.map('map', { center: [30.78, 120.29], zoom: 11, zoomControl: true });
+
+    // 2. 高德地图底图配置
+    const amapLayer = L.tileLayer(
+      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+      { subdomains: '1234', maxZoom: 18, attribution: '&copy; 高德地图' }
+    ).addTo(map);
+
+    const amapSatelliteLayer = L.tileLayer(
+      'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+      { subdomains: '1234', maxZoom: 18, attribution: '&copy; 高德地图' }
+    );
+
+    L.control.layers({ '高德地图': amapLayer, '高德卫星图': amapSatelliteLayer }, {}, { position: 'topright', collapsed: true }).addTo(map);
+    L.control.fullscreen({ position: 'topleft' }).addTo(map);
+    
+    const miniMapBase = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+    L.control.minimap(miniMapBase, { position: 'bottomright', width: 150, height: 150, zoomLevelOffset: -5 }).addTo(map);
+
+    // 动态图层与状态管理
+    let markerGroup = L.layerGroup().addTo(map);
+    let polylineLayer = null;
+    let currentRouteCoords = []; // 存储转换后的坐标，供连线开关调用
+    let pointCounts = {}; // 存储频次数据，供显示频次复选框使用
+    let pointDetails = {}; // 存储点位详情，供显示频次复选框使用
+    let frequencyMarkers = []; // 存储频次标记，供复选框切换使用
+    let areaLayer = L.layerGroup().addTo(map); // 存储区域图层
+    let singlePointLayer = L.layerGroup().addTo(map); // 存储单点图层
+    
+    // 起终点管理
+    let startPoint = null;
+    let endPoint = null;
+    let startMarker = null;
+    let endMarker = null;
+    let routeLine = null;
+    let distanceLabel = null;
+    let routeLayer = L.layerGroup().addTo(map);
+
+    // 4. 文本文件导入处理逻辑
+    document.getElementById('text-input').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const text = event.target.result;
+          const lines = text.split('\n').filter(line => line.trim() !== '');
+
+          if (lines.length === 0) { alert('⚠️ 文本文件为空，请检查数据'); return; }
+
+          // 清空旧数据
+          markerGroup.clearLayers();
+          if (polylineLayer) { map.removeLayer(polylineLayer); polylineLayer = null; }
+          currentRouteCoords = [];
+          pointCounts = {};
+          pointDetails = {};
+          frequencyMarkers = []; // 清空频次标记数组
+
+          lines.forEach((line, index) => {
+            let bdLng, bdLat;
+            const autoId = index + 1;
+
+            // 解析每行的坐标，格式为"经度,纬度"
+            const coords = line.split(',').map(item => item.trim());
+            if (coords.length === 2) {
+              bdLng = parseFloat(coords[0]);
+              bdLat = parseFloat(coords[1]);
+            }
+
+            if (!isNaN(bdLng) && !isNaN(bdLat)) {
+              const [gcjLng, gcjLat] = bd09ToGcj02(bdLng, bdLat);
+              currentRouteCoords.push([gcjLat, gcjLng]);
+
+              // 生成经纬度键（保留6位小数以避免精度问题）
+              const latLngKey = `${gcjLat.toFixed(6)},${gcjLng.toFixed(6)}`;
+              
+              if (!pointCounts[latLngKey]) {
+                pointCounts[latLngKey] = 1;
+                pointDetails[latLngKey] = { bdLng, bdLat, gcjLat, gcjLng, ids: [autoId] };
+              } else {
+                pointCounts[latLngKey]++;
+                pointDetails[latLngKey].ids.push(autoId);
+              }
+            }
+          });
+
+          if (currentRouteCoords.length === 0) {
+            alert('⚠️ 未解析到有效坐标数据，请检查格式');
+            return;
+          }
+
+          // 计算频次分布
+          const counts = Object.values(pointCounts);
+          const maxCount = Math.max(...counts);
+          
+          // 计算分位数
+          let q33, q66;
+          if (maxCount > 5) {
+            const filteredCounts = counts.filter(c => c > 5 && c < maxCount).sort((a, b) => a - b);
+            if (filteredCounts.length > 0) {
+              q33 = filteredCounts[Math.floor(filteredCounts.length * 0.333)];
+              q66 = filteredCounts[Math.floor(filteredCounts.length * 0.667)];
+            } else {
+              q33 = q66 = (5 + maxCount) / 2;
+            }
+          }
+          
+          // 获取颜色函数
+          function getColor(count) {
+            if (count <= 5) {
+              return '#FFCCCC'; // 第1档（最浅红）
+            } else if (count === maxCount) {
+              return '#800000'; // 第5档（最深红）
+            } else if (maxCount <= 5) {
+              return '#FFCCCC'; // 如果最大值不超过5，都用第1档
+            } else if (count <= q33) {
+              return '#FF9999'; // 第2档
+            } else if (count <= q66) {
+              return '#FF6666'; // 第3档
+            } else {
+              return '#CC3333'; // 第4档
+            }
+          }
+
+          // 绘制点位
+          Object.entries(pointDetails).forEach(([latLngKey, details]) => {
+            const { bdLng, bdLat, gcjLat, gcjLng, ids } = details;
+            const count = pointCounts[latLngKey];
+            // const label = count > 1 ? `重叠 ${count} 个` : `点位 ${ids[0]}`;
+            const color = getColor(count);
+
+            // const popupContent = `
+            //   <div style="min-width:180px; font-family:Arial, sans-serif;">
+            //     <h4 style="margin:0 0 8px 0; font-size:14px; color:#333;">📍 ${label}</h4>
+            //     <p style="margin:4px 0; font-size:11px; color:#666;">
+            //       <b>原始(BD-09):</b> ${bdLng.toFixed(6)}°, ${bdLat.toFixed(6)}°<br>
+            //       <b>转换(GCJ-02):</b> ${gcjLng.toFixed(6)}°, ${gcjLat.toFixed(6)}°<br>
+            //       <b>ID列表:</b> ${ids.join(', ')}
+            //     </p>
+            //   </div>`;
+
+            const pointGroup = L.layerGroup();
+            
+            // 创建自定义图标，使用对应颜色
+            const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="${color}"/>
+              <circle cx="12" cy="9" r="3" fill="#FFFFFF"/>
+            </svg>`;
+            
+            const customIcon = L.divIcon({
+              html: svgIcon,
+              iconSize: [24, 24],
+              iconAnchor: [12, 24],
+              className: ''
+            });
+            
+            // const marker = L.marker([gcjLat, gcjLng], {
+            //   icon: customIcon
+            // }).bindPopup(popupContent, { maxWidth: 220 }).addTo(pointGroup);
+
+            const marker = L.marker([gcjLat, gcjLng], {
+              icon: customIcon
+            }).addTo(pointGroup);
+
+            // 鼠标悬停显示经纬度和数量
+            marker.bindTooltip(`经度：${bdLng.toFixed(6)}°<br>纬度：${bdLat.toFixed(6)}°<br>数量：${count}`, { 
+              sticky: true, direction: 'top' 
+            });
+
+            // 检查是否需要显示频次
+            const showFrequency = document.getElementById('show-frequency').checked;
+            if (showFrequency) {
+              // 创建频次标记并存储到数组中
+              const freqMarker = L.marker([gcjLat, gcjLng], {
+                icon: L.divIcon({
+                  html: `<div style="text-align:center; color:white; font-weight:bold; font-size:12px; line-height:24px; background: rgba(0,0,0,0.6); border-radius: 12px; padding: 0 8px;">${count}</div>`,
+                  iconSize: [40, 24], 
+                  iconAnchor: [18, 45],
+                  className: 'frequency-marker'
+                })
+              });
+              frequencyMarkers.push(freqMarker);
+              freqMarker.addTo(pointGroup);
+            }
+
+            pointGroup.addTo(markerGroup);
+      });
+
+
+
+      // 默认不显示连线
+          if (currentRouteCoords.length > 1) {
+            polylineLayer = L.polyline(currentRouteCoords, {
+              color: '#3498db', dashArray: '10, 10', opacity: 0.7, weight: 3
+            }).addTo(map);
+            // 但立即隐藏
+            polylineLayer.remove();
+            polylineLayer = null;
+          }
+
+          // 收集重叠点的坐标（同一位置出现多次的点）
+          const duplicateCoords = Object.entries(pointDetails)
+            .filter(([_, details]) => pointCounts[_] > 1)
+            .map(([_, details]) => [details.gcjLat, details.gcjLng]);
+
+          // 找到频次最高的点
+          let localMaxCount = 0;
+          let maxCountPoint = null;
+          Object.entries(pointDetails).forEach(([latLngKey, details]) => {
+            const count = pointCounts[latLngKey];
+            if (count > localMaxCount) {
+              localMaxCount = count;
+              maxCountPoint = [details.gcjLat, details.gcjLng];
+            }
+          });
+
+          // 将频次最高的点显示在地图中心，并放大到最大
+          if (maxCountPoint) {
+            map.setView(maxCountPoint, 18); // 18是最大缩放级别
+          } else if (currentRouteCoords.length > 0) {
+            // 如果没有数据，使用第一个点作为中心
+            map.setView(currentRouteCoords[0], 18);
+          }
+          showMessage(`✅ 成功加载 <b>${currentRouteCoords.length}</b> 个点位，其中 <b>${Object.keys(pointDetails).length}</b> 个独立位置`);
+
+        } catch (err) {
+          alert('❌ 解析文本文件失败：' + err.message);
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+      this.value = '';
+    });
+
+    // 6. 数据准备按钮展开/收起功能
+    document.getElementById('data-prepare-btn').addEventListener('click', function(e) {
+      e.stopPropagation(); // 阻止事件冒泡
+      const dataOptions = document.getElementById('data-options');
+      if (dataOptions.style.display === 'none') {
+        dataOptions.style.display = 'block';
+      } else {
+        dataOptions.style.display = 'none';
+      }
+    });
+
+    // 点击面板外部自动收起
+    document.addEventListener('click', function(e) {
+      const dataPanel = document.getElementById('data-panel');
+      const dataOptions = document.getElementById('data-options');
+      
+      // 如果面板是展开的，且点击的不是面板内部
+      if (dataOptions.style.display === 'block' && !dataPanel.contains(e.target)) {
+        dataOptions.style.display = 'none';
+      }
+    });
+
+    // 点击面板内部的输入框和按钮时，阻止事件冒泡
+    document.getElementById('data-options').addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+
+    // 显示频次复选框事件监听器
+    document.getElementById('show-frequency').addEventListener('change', function() {
+      const showFreq = this.checked;
+      
+      if (showFreq) {
+        // 检查是否有数据
+        if (Object.keys(pointCounts).length === 0) {
+          showMessage('⚠️ 请先导入数据');
+          return;
+        }
+        
+        // 重新显示频次标记
+        const uniqueKeys = Object.keys(pointCounts);
+        uniqueKeys.forEach(key => {
+          const count = pointCounts[key];
+          const parts = key.split(',');
+          // 注意：pointCounts的键是"纬度,经度"格式
+          const gcjLat = parseFloat(parts[0]);
+          const gcjLng = parseFloat(parts[1]);
+          
+          // 创建频次标记
+          const freqMarker = L.marker([gcjLat, gcjLng], {
+            icon: L.divIcon({
+              html: `<div style="text-align:center; color:white; font-weight:bold; font-size:12px; line-height:24px; background: rgba(0,0,0,0.6); border-radius: 12px; padding: 0 8px;">${count}</div>`,
+              iconSize: [40, 24], 
+              iconAnchor: [18, 45],
+              className: 'frequency-marker'
+            })
+          });
+          frequencyMarkers.push(freqMarker);
+          freqMarker.addTo(markerGroup);
+        });
+        // showMessage(`✅ 显示了 ${frequencyMarkers.length} 个频次标记`);
+      } else {
+        // 移除现有的频次标记
+        frequencyMarkers.forEach(marker => {
+          marker.remove();
+        });
+        const removedCount = frequencyMarkers.length;
+        frequencyMarkers = [];
+        // showMessage(`✅ 隐藏了 ${removedCount} 个频次标记`);
+      }
+    });
+
+    // 7. 添加区域功能
+    document.getElementById('area-btn').addEventListener('click', function() {
+      const areaInput = document.getElementById('area-input');
+      const areaText = areaInput.value.trim();
+      
+      if (!areaText) {
+          showMessage('⚠️ 请输入区域坐标');
+          return;
+        }
+
+      try {
+        // 清空现有区域
+        areaLayer.clearLayers();
+        
+        // 解析坐标点
+        const points = areaText.split(';').map(pointStr => {
+          const coords = pointStr.split(',').map(item => parseFloat(item.trim()));
+          if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+            const [gcjLng, gcjLat] = bd09ToGcj02(coords[0], coords[1]);
+            return [gcjLat, gcjLng];
+          }
+          return null;
+        }).filter(Boolean);
+
+        if (points.length < 3) {
+          showMessage('⚠️ 区域至少需要3个点');
+          return;
+        }
+
+        // 绘制多边形
+        const polygon = L.polygon(points, {
+          color: '#3498db',
+          fillColor: '#3498db',
+          fillOpacity: 0.2,
+          weight: 2
+        }).addTo(areaLayer);
+
+        // 检查是否需要外扩
+        const bufferCheckbox = document.getElementById('buffer-checkbox');
+        if (bufferCheckbox.checked) {
+          const bufferDistanceInput = document.getElementById('buffer-distance');
+          const distance = parseFloat(bufferDistanceInput.value);
+          
+          if (!isNaN(distance) && distance > 0) {
+            // 计算多边形中心
+            const centerLat = points.reduce((sum, p) => sum + p[0], 0) / points.length;
+            const centerLng = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+            
+            // 对每个顶点沿从中心指向顶点的方向偏移
+            const bufferedPoints = points.map(point => {
+              const dx = point[1] - centerLng;
+              const dy = point[0] - centerLat;
+              const length = Math.sqrt(dx * dx + dy * dy);
+              if (length === 0) return point;
+              
+              // 归一化并乘以距离
+              const offsetLat = point[0] + (dy / length) * (distance / 111000);
+              const offsetLng = point[1] + (dx / length) * (distance / (111000 * Math.cos(point[0] * Math.PI / 180)));
+              return [offsetLat, offsetLng];
+            });
+
+            // 绘制外扩多边形
+            L.polygon(bufferedPoints, {
+              color: '#999',
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              weight: 2,
+              dashArray: '5, 5'
+            }).addTo(areaLayer);
+          }
+        }
+
+        // 自适应缩放
+        map.fitBounds(polygon.getBounds(), { padding: [50, 50] });
+        
+        showMessage(`✅ 成功添加区域，包含 ${points.length} 个点`);
+
+      } catch (err) {
+          showMessage('❌ 解析区域坐标失败：' + err.message);
+          console.error(err);
+        }
+      });
+
+    // 8. 圆形区域复选框事件
+    document.getElementById('circle-checkbox').addEventListener('change', function() {
+      const circleRadiusContainer = document.getElementById('circle-radius-container');
+      if (this.checked) {
+        circleRadiusContainer.style.display = 'inline-block';
+      } else {
+        circleRadiusContainer.style.display = 'none';
+      }
+    });
+
+    // 9. 外扩复选框事件
+    document.getElementById('buffer-checkbox').addEventListener('change', function() {
+      const bufferDistanceContainer = document.getElementById('buffer-distance-container');
+      if (this.checked) {
+        bufferDistanceContainer.style.display = 'inline-block';
+      } else {
+        bufferDistanceContainer.style.display = 'none';
+      }
+    });
+
+    // 10. 添加单点功能
+    document.getElementById('single-point-btn').addEventListener('click', function() {
+      const singlePointInput = document.getElementById('single-point-input');
+      const pointText = singlePointInput.value.trim();
+      
+      if (!pointText) {
+          showMessage('⚠️ 请输入单点坐标');
+          return;
+        }
+
+      try {
+        // 解析坐标
+        const coords = pointText.split(',').map(item => parseFloat(item.trim()));
+        if (coords.length !== 2 || isNaN(coords[0]) || isNaN(coords[1])) {
+          showMessage('⚠️ 单点坐标格式错误');
+          return;
+        }
+
+        const [gcjLng, gcjLat] = bd09ToGcj02(coords[0], coords[1]);
+
+        // 清空现有单点
+        singlePointLayer.clearLayers();
+
+        // 添加绿色点
+        const marker = L.marker([gcjLat, gcjLng], {
+          icon: L.AwesomeMarkers.icon({ markerColor: 'green', iconColor: 'white', icon: 'map-marker', prefix: 'fa' })
+        }).bindPopup(`
+          <div style="min-width:180px; font-family:Arial, sans-serif;">
+            <h4 style="margin:0 0 8px 0; font-size:14px; color:#333;">📍 单点</h4>
+            <p style="margin:4px 0; font-size:11px; color:#666;">
+              <b>原始(BD-09):</b> ${coords[0].toFixed(6)}°, ${coords[1].toFixed(6)}°<br>
+              <b>转换(GCJ-02):</b> ${gcjLng.toFixed(6)}°, ${gcjLat.toFixed(6)}°
+            </p>
+          </div>`, { maxWidth: 220 }).addTo(singlePointLayer);
+
+        // 鼠标悬停显示经纬度
+        marker.bindTooltip(`经度：${coords[0].toFixed(6)}°<br>纬度：${coords[1].toFixed(6)}°`, { 
+          sticky: true, direction: 'top' 
+        });
+
+        // 检查是否需要显示圆形区域
+        const circleCheckbox = document.getElementById('circle-checkbox');
+        if (circleCheckbox.checked) {
+          const circleRadiusInput = document.getElementById('circle-radius');
+          const radius = parseFloat(circleRadiusInput.value);
+          
+          if (!isNaN(radius) && radius > 0) {
+            // 添加圆形区域
+            L.circle([gcjLat, gcjLng], {
+              radius: radius,
+              color: '#4CAF50',
+              fillColor: '#4CAF50',
+              fillOpacity: 0.2
+            }).addTo(singlePointLayer);
+          }
+        }
+
+        // 自适应缩放
+        map.setView([gcjLat, gcjLng], 15);
+        
+        showMessage('✅ 成功添加单点');
+
+      } catch (err) {
+        showMessage('❌ 解析单点坐标失败：' + err.message);
+        console.error(err);
+      }
+    });
+
+    // 11. 右键菜单功能
+    const contextMenu = document.getElementById('context-menu');
+    
+    // 地图右键点击事件
+    map.on('contextmenu', function(e) {
+      e.originalEvent.preventDefault(); // 阻止默认右键菜单
+      
+      // 显示自定义右键菜单
+      contextMenu.style.display = 'block';
+      contextMenu.style.left = e.originalEvent.clientX + 'px';
+      contextMenu.style.top = e.originalEvent.clientY + 'px';
+      
+      // 存储当前点击位置
+      window.contextMenuLatLng = e.latlng;
+    });
+    
+    // 点击其他地方关闭右键菜单
+    document.addEventListener('click', function() {
+      contextMenu.style.display = 'none';
+    });
+    
+    // 菜单项点击事件
+    document.querySelectorAll('.menu-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const action = this.getAttribute('data-action');
+        const latlng = window.contextMenuLatLng;
+        
+        if (action === 'add-start') {
+          addStartPoint(latlng);
+        } else if (action === 'add-end') {
+          addEndPoint(latlng);
+        } else if (action === 'remove-all') {
+          removeAllPoints();
+        }
+        
+        contextMenu.style.display = 'none';
+      });
+    });
+    
+    // 更新菜单项状态
+    function updateMenuState() {
+      const addStartItem = document.querySelector('[data-action="add-start"]');
+      const addEndItem = document.querySelector('[data-action="add-end"]');
+      const removeAllItem = document.querySelector('[data-action="remove-all"]');
+      
+      // 更新添加起点
+      if (startPoint) {
+        addStartItem.style.pointerEvents = 'none';
+        addStartItem.style.color = '#ccc';
+      } else {
+        addStartItem.style.pointerEvents = 'auto';
+        addStartItem.style.color = '#333';
+      }
+      
+      // 更新添加终点
+      if (startPoint && !endPoint) {
+        addEndItem.style.pointerEvents = 'auto';
+        addEndItem.style.color = '#333';
+      } else {
+        addEndItem.style.pointerEvents = 'none';
+        addEndItem.style.color = '#ccc';
+      }
+      
+      // 更新删除起终点
+      if (startPoint || endPoint) {
+        removeAllItem.style.pointerEvents = 'auto';
+        removeAllItem.style.color = '#333';
+      } else {
+        removeAllItem.style.pointerEvents = 'none';
+        removeAllItem.style.color = '#ccc';
+      }
+    }
+    
+    // 添加起点
+    function addStartPoint(latlng) {
+      // 清空现有起点
+      if (startMarker) {
+        routeLayer.removeLayer(startMarker);
+      }
+      
+      startPoint = latlng;
+      
+      // 创建起点标记
+      startMarker = L.marker(latlng, {
+        icon: L.AwesomeMarkers.icon({ markerColor: 'blue', iconColor: 'white', icon: 'flag', prefix: 'fa' })
+      }).bindPopup('📍 起点').addTo(routeLayer);
+      
+      updateMenuState();
+      updateRoute();
+    }
+    
+    // 添加终点
+    function addEndPoint(latlng) {
+      // 清空现有终点
+      if (endMarker) {
+        routeLayer.removeLayer(endMarker);
+      }
+      
+      endPoint = latlng;
+      
+      // 创建终点标记
+      endMarker = L.marker(latlng, {
+        icon: L.AwesomeMarkers.icon({ markerColor: 'red', iconColor: 'white', icon: 'flag', prefix: 'fa' })
+      }).bindPopup('📍 终点').addTo(routeLayer);
+      
+      updateMenuState();
+      updateRoute();
+    }
+    
+    // 删除起终点
+    function removeAllPoints() {
+      // 清空起终点
+      if (startMarker) {
+        routeLayer.removeLayer(startMarker);
+        startMarker = null;
+      }
+      if (endMarker) {
+        routeLayer.removeLayer(endMarker);
+        endMarker = null;
+      }
+      if (routeLine) {
+        routeLayer.removeLayer(routeLine);
+        routeLine = null;
+      }
+      if (distanceLabel) {
+        routeLayer.removeLayer(distanceLabel);
+        distanceLabel = null;
+      }
+      
+      startPoint = null;
+      endPoint = null;
+      
+      updateMenuState();
+    }
+    
+    // 更新路径
+    function updateRoute() {
+      // 清除现有路径
+      if (routeLine) {
+        routeLayer.removeLayer(routeLine);
+        routeLine = null;
+      }
+      if (distanceLabel) {
+        routeLayer.removeLayer(distanceLabel);
+        distanceLabel = null;
+      }
+      
+      // 如果起终点都存在，绘制路径
+      if (startPoint && endPoint) {
+        // 绘制虚线
+        routeLine = L.polyline([startPoint, endPoint], {
+          color: '#666',
+          dashArray: '5, 10',
+          weight: 2,
+          opacity: 0.7
+        }).addTo(routeLayer);
+        
+        // 计算距离
+        const distance = calculateDistance(startPoint, endPoint);
+        
+        // 格式化距离显示
+        let displayDistance, unit;
+        if (distance >= 1000) {
+          displayDistance = (distance / 1000).toFixed(1);
+          unit = '公里';
+        } else {
+          displayDistance = distance;
+          unit = '米';
+        }
+        
+        // 在路径中点显示距离
+        const midLat = (startPoint.lat + endPoint.lat) / 2;
+        const midLng = (startPoint.lng + endPoint.lng) / 2;
+        
+        distanceLabel = L.marker([midLat, midLng], {
+          icon: L.divIcon({
+            html: `<div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 8px 15px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 14px; font-weight: bold; color: #333; border: 1px solid #e0e0e0; text-align: center;">${displayDistance} ${unit}</div>`,
+            iconSize: [120, 40],
+            iconAnchor: [60, 20],
+            className: 'empty'
+          })
+        }).addTo(routeLayer);
+        
+        // 自适应缩放
+        map.fitBounds([startPoint, endPoint], { padding: [50, 50] });
+      }
+    }
+    
+    // 计算两点之间的距离（米）
+    function calculateDistance(point1, point2) {
+      const R = 6371e3; // 地球半径（米）
+      const φ1 = point1.lat * Math.PI / 180;
+      const φ2 = point2.lat * Math.PI / 180;
+      const Δφ = (point2.lat - point1.lat) * Math.PI / 180;
+      const Δλ = (point2.lng - point1.lng) * Math.PI / 180;
+      
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      
+      return Math.round(R * c);
+    }
+  </script>
+</body>
+</html>
